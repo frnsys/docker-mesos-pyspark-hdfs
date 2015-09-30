@@ -79,7 +79,7 @@ Now it will be available to Spark and the example can be run from the client mac
 
     ./run pyspark <my script>
 
-Just note that any PySpark script needs to know the Zookeeper IP(s) and the Hadoop IP. If you use this `run` command to run your script, then the Zookeeper IP(s) and the Hadoop IP are passed in as first and second arguments, respectively, so they can be accessed like so:
+Just note that any PySpark script needs to know the Zookeeper IP(s) and the Hadoop IP. If you use this `run pyspark` command to run your script, then the Zookeeper IP(s) and the Hadoop IP are passed in as first and second arguments, respectively, so they can be accessed like so:
 
     import sys
     leader_ip = sys.argv[1]
