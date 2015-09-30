@@ -1,12 +1,12 @@
 import sys
 import pyspark
 
-leader_ip = sys.argv[1]
+zookeeper = sys.argv[1]
 hadoop_ip = sys.argv[2]
 
 src = 'hdfs://{}:8020/sample.txt'.format(hadoop_ip)
 conf = pyspark.SparkConf()
-conf.setMaster('mesos://zk://{}:2181/mesos'.format(leader_ip))
+conf.setMaster('mesos://zk://{}/mesos'.format(zookeeper))
 conf.setAppName('my_test_app')
 
 # this must be a _prebuilt_ spark archive, i.e. a spark binary package

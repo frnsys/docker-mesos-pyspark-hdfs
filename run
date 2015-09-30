@@ -118,7 +118,7 @@ function run_pyspark {
     export PYSPARK_PYTHON=/usr/bin/python3
     HADOOP_IP=$(show_ips | grep hadoop | awk '{print $2}')
     LEADER_IP=$(show_ips | grep mesos_zookeeper | awk '{print $2}')
-    python $1 $LEADER_IP $HADOOP_IP
+    python $1 "$LEADER_IP:2181" $HADOOP_IP
 }
 
 
