@@ -1,0 +1,15 @@
+FROM mesos_base
+
+ADD docker/assets/start_follower start_follower
+
+EXPOSE 5051
+
+# permissions fix
+ENV MESOS_SWITCH_USER 0
+
+# use python3 for pyspark
+RUN apt-get install python3
+ENV PYSPARK_PYTHON /usr/bin/python3
+ENV PYSPARK_DRIVER_PYTHON python3
+
+ENTRYPOINT ["./start_follower"]

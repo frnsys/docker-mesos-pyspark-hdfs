@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# get "external" docker ip
+HDFS_IP=$(ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{print $1}')
+
+# set the proper ip in the HDFS config
+sed -i 's/localhost/'${HDFS_IP}'/g' $HADOOP_HOME/etc/hadoop/core-site.xml
+
+/etc/init.d/ssh restart
+start-dfs.sh
+
+if [[ $1 == "-d" ]]; then
+    while true; do sleep 1000; done
+fi
+
+if [[ $1 == "-bash" ]]; then
+    /bin/bash
+fi

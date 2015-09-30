@@ -1,0 +1,51 @@
+FROM ubuntu:14.04
+
+ENV HADOOP_V 2.7.1
+ENV HADOOP_HOME /usr/local/hadoop
+ENV HADOOP_PREFIX $HADOOP_HOME
+ENV JAVA_HOME /usr/lib/jvm/java-7-openjdk-amd64
+ENV PATH $PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+ENV HADOOP_TMP /var/hadoop/tmp
+
+# update
+RUN apt-get update
+RUN apt-get upgrade -y
+
+# dependencies
+RUN apt-get install -y openssh-server openjdk-7-jdk wget
+
+# disable ipv6 since hadoop does not support it
+RUN echo 'net.ipv6.conf.all.disable_ipv6 = 1' >> /etc/sysctl.conf
+RUN echo 'net.ipv6.conf.default.disable_ipv6 = 1' >> /etc/sysctl.conf
+RUN echo 'net.ipv6.conf.lo.disable_ipv6 = 1' >> /etc/sysctl.conf
+
+# hadoop
+RUN wget http://apache.arvixe.com/hadoop/core/hadoop-${HADOOP_V}/hadoop-${HADOOP_V}.tar.gz
+RUN tar -zxf hadoop-*.tar.gz
+RUN rm hadoop-*.tar.gz
+RUN mv hadoop-* $HADOOP_HOME
+
+# hadoop tmp directory
+RUN mkdir -p $HADOOP_TMP
+RUN chmod 750 $HADOOP_TMP
+
+# configs
+RUN echo "export JAVA_HOME=$JAVA_HOME" >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+ADD docker/assets/core-site.xml $HADOOP_HOME/etc/hadoop/core-site.xml
+
+# auth
+# the provided config saves us from having
+# to accept each new host key on connect
+RUN ssh-keygen -q -N "" -t rsa -f /root/.ssh/id_rsa
+RUN cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+ADD docker/assets/ssh_config /root/.ssh/config
+
+# format the hdfs
+RUN hdfs namenode -format
+
+ADD docker/assets/start_hadoop start_hadoop
+
+EXPOSE 8020 50010 50020 50070 50075 50090
+
+CMD ["-d"]
+ENTRYPOINT ["./start_hadoop"]

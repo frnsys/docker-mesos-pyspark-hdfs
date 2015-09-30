@@ -1,0 +1,7 @@
+FROM mesos_base
+
+ADD docker/assets/start_leader start_leader
+
+EXPOSE 5050
+
+ENTRYPOINT ["./start_leader"]

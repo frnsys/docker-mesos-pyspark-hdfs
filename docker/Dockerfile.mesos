@@ -1,0 +1,23 @@
+FROM ubuntu:14.04
+
+ENV MESOS_V 0.24.0
+
+# update
+RUN apt-get update
+RUN apt-get upgrade -y
+
+# dependencies
+RUN apt-get install -y wget openjdk-7-jdk build-essential python-dev python-boto libcurl4-nss-dev libsasl2-dev maven libapr1-dev libsvn-dev
+
+# mesos
+RUN wget http://www.apache.org/dist/mesos/${MESOS_V}/mesos-${MESOS_V}.tar.gz
+RUN tar -zxf mesos-*.tar.gz
+RUN rm mesos-*.tar.gz
+RUN mv mesos-* mesos
+WORKDIR mesos
+RUN mkdir build
+RUN ./configure
+RUN make
+RUN make install
+
+RUN ldconfig

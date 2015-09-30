@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# get "external" docker IP
+LEADER_IP=$(ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{print $1}')
+mesos-master --registry=in_memory --ip=${LEADER_IP} --zk=zk://${ZOOKEEPER}/mesos

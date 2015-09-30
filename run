@@ -1,0 +1,164 @@
+#!/bin/bash
+
+# FUNCS
+# ============================================
+function remove_containers {
+    # all containers mentioning "mesos"
+    mesos_containers=$(sudo docker ps -a | grep mesos | awk '{print $1}')
+
+    # stop and remove
+    sudo docker stop $mesos_containers
+    sudo docker rm $mesos_containers
+}
+
+function remove_images {
+    # all images mentioning "mesos"
+    mesos_images=$(sudo docker images | grep mesos | awk '{print $3}')
+
+    if [ ! -z $mesos_images ]; then
+        # remove
+        sudo docker rmi $mesos_images
+    fi
+
+    # remove dangling images
+    sudo docker rmi $(sudo docker images --quiet --filter "dangling=true")
+}
+
+function show_ips {
+    # show ips of docker containers
+    sudo docker inspect --format '{{ .Name }}: {{.NetworkSettings.IPAddress }}' $(sudo docker ps -aq)
+}
+
+function build_images {
+    sudo docker build -f docker/Dockerfile.mesos -t mesos_base .
+    sudo docker build -f docker/Dockerfile.follower -t mesos_follower .
+    sudo docker build -f docker/Dockerfile.leader -t mesos_leader .
+    sudo docker build -f docker/Dockerfile.zookeeper -t mesos_zookeeper .
+    sudo docker build -f docker/Dockerfile.hadoop -t hadoop .
+}
+
+function install_docker {
+    # install docker
+    curl -sSL https://get.docker.com/ | sh
+
+    # install docker-compose
+    # see <https://github.com/docker/compose/releases> for latest version
+    export COMPOSE_VERSION=1.4.2
+    sudo bash -c "curl -L https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose"
+    sudo chmod +x /usr/local/bin/docker-compose
+
+    # get the ubuntu 14.04 image
+    sudo docker pull ubuntu:14.04
+}
+
+function install_spark {
+    # go to <spark.apache.org/downloads.html>
+    # select and download the version you want
+    tar -xzvf spark-*.tgz
+    rm spark-*.tgz
+    sudo mv spark* /usr/local/share/spark
+
+    # edit bash_profile
+    echo 'export SPARK_HOME=/usr/local/share/spark' >> ~/.bash_profile
+    echo 'export PATH=$SPARK_HOME/bin:$PATH' >> ~/.bash_profile
+    echo 'export PYTHONPATH=$SPARK_HOME/python:$PYTHONPATH' >> ~/.bash_profile
+
+    # install py4j for pyspark
+    sudo pip install py4j
+
+    # setup sparkenv
+    cp $SPARK_HOME/conf/spark-env.sh.template $SPARK_HOME/conf/spark-env.sh
+    echo 'export MESOS_NATIVE_JAVA_LIBRARY=/usr/local/lib/libmesos.so' >> $SPARK_HOME/conf/spark-env.sh
+}
+
+function install_mesos {
+    # no mesos binaries are provided at this time,
+    # you must compile from source
+    MESOS_VERSION=0.24.0
+
+    # sources available at <https://mesos.apache.org/gettingstarted/>
+    wget http://www.apache.org/dist/mesos/${MESOS_VERSION}/mesos-${MESOS_VERSION}.tar.gz
+    tar -zxf mesos-*.tar.gz
+    rm mesos-*.tar.gz
+
+    # dependencies
+    sudo apt-get install -y openjdk-7-jdk build-essential python-dev python-boto libcurl4-nss-dev libsasl2-dev maven libapr1-dev libsvn-dev
+
+    # by default, this installs to /usr/local
+    cd mesos*
+    mkdir build
+    cd build
+    ../configure
+    make
+    sudo make install
+}
+
+function run_zookeeper {
+    sudo docker run --name mesos_zookeeper -itP mesos_zookeeper
+}
+
+function run_leader {
+    ZOOKEEPER_IP=$(show_ips | grep mesos_zookeeper | awk '{print $2}')
+    sudo docker run -e ZOOKEEPER=${ZOOKEEPER_IP}:2181 --name mesos_leader -itP mesos_leader
+}
+
+function run_follower {
+    ZOOKEEPER_IP=$(show_ips | grep mesos_zookeeper | awk '{print $2}')
+    sudo docker run -e ZOOKEEPER=${ZOOKEEPER_IP}:2181 --name mesos_follower -itP mesos_follower
+}
+
+function run_hadoop {
+    # note that the hostname (i.e. container name) cannot have an underscore in it
+    # or java will throw a fit when spark tries to access the hadoop host.
+    sudo docker run --name hadoop -itP hadoop
+}
+
+function run_pyspark {
+    export LIBPROCESS_IP=$(ifconfig docker0 | grep 'inet addr:' | cut -d: -f2 | awk '{print $1}')
+    export PYSPARK_PYTHON=/usr/bin/python3
+    HADOOP_IP=$(show_ips | grep hadoop | awk '{print $2}')
+    LEADER_IP=$(show_ips | grep mesos_zookeeper | awk '{print $2}')
+    python $1 $LEADER_IP $HADOOP_IP
+}
+
+
+# CMDS
+# ============================================
+if [ -z $1 ]
+then
+    echo -e "$(tput setaf 3)Tell me what to do...$(tput sgr0)"
+
+elif [ $1 == 'install_docker' ]; then
+    install_docker
+elif [ $1 == 'install_mesos' ]; then
+    install_mesos
+elif [ $1 == 'install_spark' ]; then
+    install_spark
+elif [ $1 == 'build_images' ]; then
+    build_images
+elif [ $1 == 'zookeeper' ]; then
+    run_zookeeper
+elif [ $1 == 'leader' ]; then
+    run_leader
+elif [ $1 == 'follower' ]; then
+    run_follower
+elif [ $1 == 'hadoop' ]; then
+    run_hadoop
+elif [ $1 == 'ips' ]; then
+    show_ips
+elif [ $1 == 'rmi' ]; then
+    remove_images
+elif [ $1 == 'rmc' ]; then
+    remove_containers
+elif [ $1 == 'nuke' ]; then
+    remove_containers
+    remove_images
+elif [ $1 == 'pyspark' ]; then
+    if [ -z $2 ]; then
+        echo "Tell me a script to run"
+    else
+        run_pyspark $2
+    fi
+else
+    echo "Didn't recognize the command '${1}'"
+fi
